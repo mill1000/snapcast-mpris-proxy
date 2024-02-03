@@ -1,4 +1,4 @@
-#! /usr/bin/python3
+#!/usr/bin/env python3
 
 import argparse
 import asyncio
@@ -141,7 +141,7 @@ async def _discover():
     return devices
 
 
-async def main(args) -> NoReturn:
+async def run(args) -> NoReturn:
     """Main monitor function."""
 
     if args.kasa_device is None:
@@ -214,7 +214,8 @@ async def discover(args) -> NoReturn:
 
     exit()
 
-if __name__ == "__main__":
+
+def main():
     # Basic log config
     logging.basicConfig(
         format='%(levelname)s: %(message)s', level=logging.INFO)
@@ -240,8 +241,12 @@ if __name__ == "__main__":
     if args.verbose:
         _LOGGER.setLevel(logging.DEBUG)
 
-    func = discover if args.discover else main
+    func = discover if args.discover else run
     try:
         asyncio.run(func(args))
     except KeyboardInterrupt:
         pass
+
+
+if __name__ == "__main__":
+    main()
