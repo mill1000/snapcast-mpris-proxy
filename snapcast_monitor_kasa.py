@@ -154,6 +154,8 @@ async def _reconnect(server) -> None:
                 "Failed to connect to Snapcast server '%s'.", server)
             await asyncio.sleep(2)
 
+    _LOGGER.info("Reconnected to Snapcast server '%s'.", server)
+
 
 async def run(args) -> NoReturn:
     """Main monitor function."""
@@ -191,6 +193,8 @@ async def run(args) -> NoReturn:
         _LOGGER.error(
             "Failed to connect to Snapcast server '%s'.", args.hostname)
         exit(1)
+
+    _LOGGER.info("Connected to Snapcast server '%s'.", server)
 
     # Try to find the Snapcast client
     client = next(
