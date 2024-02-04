@@ -141,6 +141,20 @@ async def _discover():
     return devices
 
 
+async def _reconnect(server) -> None:
+    """Attempt to reconnect to the Snapcast server."""
+    await server.stop()
+
+    while True:
+        try:
+            await server.start()
+            break
+        except OSError as e:
+            _LOGGER.error(
+                "Failed to connect to Snapcast server '%s'.", server)
+            await asyncio.sleep(2)
+
+
 async def run(args) -> NoReturn:
     """Main monitor function."""
 
@@ -193,12 +207,19 @@ async def run(args) -> NoReturn:
     controller = SystemController(device)
 
     while True:
-        await asyncio.sleep(.5)
         # Update Snapcast state
-        server.synchronize(await server.status())
+        status = await server.status()
+
+        if not isinstance(status, dict):
+            _LOGGER.warning("Error fetching status from server.")
+            await _reconnect(server)
+            continue
+
+        server.synchronize(status)
 
         # Update controller
         await controller.update(client)
+        await asyncio.sleep(.5)
 
 
 async def discover(args) -> NoReturn:
@@ -219,7 +240,6 @@ def main():
     # Basic log config
     logging.basicConfig(
         format='%(levelname)s: %(message)s', level=logging.INFO)
-    _LOGGER = logging.getLogger("mpris-monitor")
 
     # Argument parsing
     parser = argparse.ArgumentParser(description="Automate system power by monitoring the Snapcast server.",
