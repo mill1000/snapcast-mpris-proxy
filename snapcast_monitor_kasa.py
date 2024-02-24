@@ -168,7 +168,7 @@ async def run(args) -> NoReturn:
         _LOGGER.error("Snapcast server hostname must be supplied.")
         exit(1)
 
-    if args.hostname is None:
+    if args.client is None:
         _LOGGER.error("Snapcast client name must be supplied.")
         exit(1)
 
