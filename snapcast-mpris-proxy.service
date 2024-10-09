@@ -1,0 +1,13 @@
+[Unit]
+Description=Snapcast MPRIS Proxy
+After=dbus.service network-online.target
+Wants=dbus.service network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/snapcast-mpris-proxy
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=snapcast-mpris-proxy
+
+[Install]
+WantedBy=multi-user.target
