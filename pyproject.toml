@@ -27,8 +27,8 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/mill1000/snapcast-monitor"
-Issues = "https://github.com/mill1000/snapcast-monitor/issues"
+Repository = "https://github.com/mill1000/snapcast-mpris-proxy"
+Issues = "https://github.com/mill1000/snapcast-mpris-proxy/issues"
 
 [project.scripts]
 snapcast-mpris-proxy = "snapcast_mpris_proxy:main"
