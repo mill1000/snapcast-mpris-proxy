@@ -3,8 +3,8 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "snapcast-monitor-kasa"
-description = "Monitor a Snapcast server for client and stream state to control Kasa switches."
+name = "snapcast-mpris-proxy"
+description = "Proxy Snapcast client and stream status to MPRIS D-Bus interface."
 version = "1.0.0"
 readme = "README.md"
 authors = [
@@ -19,12 +19,11 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "License :: OSI Approved :: MIT License",
-  "Operating System :: OS Independent",
-  "Topic :: Home Automation"
+  "Operating System :: OS Independent"
 ]
 dependencies = [
-  "snapcast",
-  "python-kasa"
+  "dbus-fast",
+  "snapcast"
 ]
 
 [project.urls]
@@ -32,7 +31,7 @@ Repository = "https://github.com/mill1000/snapcast-monitor"
 Issues = "https://github.com/mill1000/snapcast-monitor/issues"
 
 [project.scripts]
-snapcast-monitor-kasa = "snapcast_monitor_kasa:main"
+snapcast-mpris-proxy = "snapcast_mpris_proxy:main"
 
 [tool.setuptools]
-py-modules = ["snapcast_monitor_kasa"]
+py-modules = ["snapcast_mpris_proxy"]
