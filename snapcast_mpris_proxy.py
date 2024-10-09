@@ -3,142 +3,100 @@
 import argparse
 import asyncio
 import logging
-from enum import IntEnum
+from enum import StrEnum
 from typing import NoReturn
 
-import kasa
 import snapcast.control
+from dbus_fast import BusType, PropertyAccess
+from dbus_fast.aio import MessageBus
+from dbus_fast.service import ServiceInterface, dbus_property
 
-_LOGGER = logging.getLogger("snapcast-monitor")
-
-
-class AsyncTimer():
-    """A timer class built on asyncio."""
-
-    def __init__(self, timeout: float, callback) -> None:
-        self._timeout = timeout
-        self._callback = callback
-
-    async def _run(self) -> None:
-        await asyncio.sleep(self._timeout)
-        await self._callback()
-
-    def start(self) -> None:
-        self._task = asyncio.create_task(self._run())
-
-    def cancel(self) -> None:
-        self._task.cancel()
+_LOGGER = logging.getLogger("snapcast-mpris-proxy")
 
 
-class State(IntEnum):
-    IDLE = 0
-    IDLE_COUNTDOWN = 1
-    MUTE = 2
-    ACTIVE = 3
+class PlaybackStatus(StrEnum):
+    PLAYING = "Playing"
+    PAUSED = "Paused"
+    STOPPED = "STOPPED"
 
 
-class SystemController():
-    """Class to manage system state."""
+class MediaPlayer2Interface(ServiceInterface):
+    """MPRIS MediaPlayer2 Interface"""
 
-    def __init__(self, device) -> None:
-        self._device = device
-        self._state = State.IDLE
-        self._timer = None
+    def __init__(self) -> None:
+        super().__init__("org.mpris.MediaPlayer2")
 
-    async def _turn_on(self) -> None:
-        _LOGGER.info("Enabling system power.")
+    # Indicate we can't be controlled in any way
+    @dbus_property(name="CanQuit", access=PropertyAccess.READ)
+    def can_quit(self) -> "b":
+        return False
 
-        # Preamp = 0
-        # Amp 1 = 1
-        # Amp 2 = 2
-        for plug in self._device.children:
-            await plug.turn_on()
-            await asyncio.sleep(1)
+    @dbus_property(name="CanSetFullscreen", access=PropertyAccess.READ)
+    def can_set_fullscreen(self) -> "b":
+        return False
 
-        self._state = State.ACTIVE
+    @dbus_property(name="CanRaise", access=PropertyAccess.READ)
+    def can_raise(self) -> "b":
+        return False
 
-    async def _turn_off(self) -> None:
-        _LOGGER.info("Disabling system power.")
+    @dbus_property(name="HasTrackList", access=PropertyAccess.READ)
+    def has_track_list(self) -> "b":
+        return False
 
-        # Turn off in reverse order
-        for plug in reversed(self._device.children):
-            await plug.turn_off()
-            await asyncio.sleep(1)
-
-        self._state = State.IDLE
-
-        # Stop and destroy timer if present
-        if self._timer:
-            self._timer.cancel()
-            self._timer = None
-
-    async def update(self, client) -> None:
-        stream_idle = client.group.stream_status == "idle"
-        client_idle = client.muted or stream_idle
-
-        # _LOGGER.info("Steam idle %s, client mute %s, client idle %s", stream_idle, client.muted, client_idle)
-        # _LOGGER.info("state %s ", self._state)
-        if not client_idle:
-            # Power on if coming out of idle
-            if self._state == State.IDLE:
-                await self._turn_on()
-
-            # Ensure state is active
-            self._state = State.ACTIVE
-
-            # Disable the shutdown timer if running
-            if self._timer:
-                _LOGGER.debug("Disabled shutdown timer.")
-                self._timer.cancel()
-                self._timer = None
-
-        elif stream_idle:
-            # Nothing to do if already idle
-            if self._state == State.IDLE or self._state == State.IDLE_COUNTDOWN:
-                return
-
-            if self._state == State.MUTE and self._timer is not None:
-                _LOGGER.debug("Disabled shutdown timer.")
-                self._timer.cancel()
-                self._timer = None
-
-            self._state = State.IDLE_COUNTDOWN
-
-            # Start shutdown timer with short interval
-            _LOGGER.debug("Starting short ({0} s) shutdown timer.".format(10))
-            self._timer = AsyncTimer(10, self._turn_off)
-            self._timer.start()
-
-        elif client.muted:
-            # TODO Treat muted client as "paused"?
-
-            # Nothing to do if already muted or idle
-            if self._state == State.MUTE or self._state == State.IDLE:
-                return
-
-            # Disable the shutdown timer if running
-            if self._timer:
-                _LOGGER.debug("Disabled shutdown timer.")
-                self._timer.cancel()
-                self._timer = None
-
-            self._state = State.MUTE
-
-            # Start shutdown timer with long interval
-            _LOGGER.debug("Starting long ({0} s) shutdown timer.".format(60))
-            self._timer = AsyncTimer(60, self._turn_off)
-            self._timer.start()
+    @dbus_property(name="Identity", access=PropertyAccess.READ)
+    def identity(self) -> "s":
+        return "Snapcast MPRIS Proxy"
 
 
-async def _discover():
-    """Discover Kasa devices on the network."""
+class MediaPlayer2PlayerInterface(ServiceInterface):
 
-   # Discover available devices
-    _LOGGER.info("Discovering Kasa devices.")
-    devices = await kasa.Discover.discover(timeout=1)
-    _LOGGER.info("Found {0} devices.".format(len(devices)))
+    """MPRIS MediaPlayer2 Player Interface"""
 
-    return devices
+    def __init__(self) -> None:
+        super().__init__("org.mpris.MediaPlayer2.Player")
+
+        self._playback_status = PlaybackStatus.STOPPED
+
+    # Supported properties
+    @dbus_property(name="PlaybackStatus", access=PropertyAccess.READ)
+    def playback_status(self) -> "s":
+        return self._playback_status
+
+    @playback_status.setter
+    def playback_status(self, status: PlaybackStatus) -> None:
+        if self._playback_status == status:
+            return
+
+        _LOGGER.debug("Set PlaybackStatus to %s.", status)
+        self._playback_status = status
+        self.emit_properties_changed(
+            {"PlaybackStatus": self._playback_status})
+
+    # Indicate we can't be controlled in any way
+
+    @dbus_property(name="CanControl", access=PropertyAccess.READ)
+    def can_control(self) -> "b":
+        return False
+
+    @dbus_property(name="CanGoNext", access=PropertyAccess.READ)
+    def can_go_next(self) -> "b":
+        return False
+
+    @dbus_property(name="CanGoPrevious", access=PropertyAccess.READ)
+    def can_go_previous(self) -> "b":
+        return False
+
+    @dbus_property(name="CanPlay", access=PropertyAccess.READ)
+    def can_play(self) -> "b":
+        return False
+
+    @dbus_property(name="CanPause", access=PropertyAccess.READ)
+    def can_pause(self) -> "b":
+        return False
+
+    @dbus_property(name="CanSeek", access=PropertyAccess.READ)
+    def can_seek(self) -> "b":
+        return False
 
 
 async def _reconnect(server) -> None:
@@ -158,32 +116,7 @@ async def _reconnect(server) -> None:
 
 
 async def run(args) -> NoReturn:
-    """Main monitor function."""
-
-    if args.kasa_device is None:
-        _LOGGER.error("Kasa device must be supplied.")
-        exit(1)
-
-    if args.hostname is None:
-        _LOGGER.error("Snapcast server hostname must be supplied.")
-        exit(1)
-
-    if args.client is None:
-        _LOGGER.error("Snapcast client name must be supplied.")
-        exit(1)
-
-    devices = await _discover()
-
-    # Find first device with matching alias
-    device = next((d for _, d in devices.items()
-                  if d.alias == args.kasa_device), None)
-
-    if device is None:
-        _LOGGER.error("Could not find Kasa device '%s'.", args.kasa_device)
-        exit()
-
-    # Update device information
-    await device.update()
+    """Main proxy function/."""
 
     # Connect to the Snapcast server
     loop = asyncio.get_running_loop()
@@ -208,10 +141,26 @@ async def run(args) -> NoReturn:
     if client.connected == False:
         _LOGGER.warning("Client is not connected to server.")
 
-    controller = SystemController(device)
+    # Connect to the system bus
+    _LOGGER.info("Connecting to system bus.")
+    bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+
+    # Construct and export MPRIS interfaces
+    _LOGGER.info("Exporting MediaPlayer2 interface.")
+    mediaplayer2 = MediaPlayer2Interface()
+    bus.export("/org/mpris/MediaPlayer2", mediaplayer2)
+
+    _LOGGER.info("Exporting MediaPlayer2.Player interface.")
+    player = MediaPlayer2PlayerInterface()
+    bus.export("/org/mpris/MediaPlayer2", player)
+
+    # Acquire our friendly name
+    name = f"org.mpris.MediaPlayer2.snapcast_mpris_proxy.client_{args.client}"
+    _LOGGER.info(f"Requesting friendly name '{name}' on bus.")
+    await bus.request_name(name)
 
     while True:
-        # Update Snapcast state
+        # Get latest data
         status = await server.status()
 
         if not isinstance(status, dict):
@@ -219,55 +168,51 @@ async def run(args) -> NoReturn:
             await _reconnect(server)
             continue
 
+        # Update server object
         server.synchronize(status)
 
-        # Update controller
-        await controller.update(client)
+        # Check client and stream state
+        stream_idle = client.group.stream_status == "idle"
+        client_idle = client.muted or stream_idle
+
+        _LOGGER.debug("Client idle: %s. Client mute: %s. Stream idle: %s.",
+                      client_idle, client.muted, stream_idle)
+
+        # Set playback status
+        if not client_idle:
+            player.playback_status = PlaybackStatus.PLAYING
+
+        elif stream_idle:
+            player.playback_status = PlaybackStatus.STOPPED
+
+        elif client.muted:
+            # Treat muted client as paused
+            player.playback_status = PlaybackStatus.PAUSED
+
         await asyncio.sleep(.5)
 
 
-async def discover(args) -> NoReturn:
-    """Discover and print available Kasa devices."""
-
-    # Discover available devices
-    devices = await _discover()
-
-    if len(devices):
-        _LOGGER.info("Discovered devices:")
-        for _, device in devices.items():
-            _LOGGER.info(device)
-
-    exit()
-
-
-def main():
+def main() -> None:
     # Basic log config
     logging.basicConfig(
         format='%(levelname)s: %(message)s', level=logging.INFO)
 
     # Argument parsing
-    parser = argparse.ArgumentParser(description="Automate system power by monitoring the Snapcast server.",
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument(
-        "--discover", help="Discover Kasa devices on the network.", action="store_true")
-    # parser.add_argument("--pause_timeout", help="Disable system power when paused for this duration (seconds).", default=60, type=int)
-    # parser.add_argument("--stop_timeout", help="Disable system power when stopped for this duration (seconds).", default=5, type=int)
+    parser = argparse.ArgumentParser(
+        description="Proxy Snapcast client and stream status to MPRIS D-Bus interface.")
     parser.add_argument(
         "--verbose", help="Enable debug messages.", action="store_true")
     parser.add_argument(
-        "kasa_device", help="Kasa device to control.", nargs="?")
-    parser.add_argument(
-        "hostname", help="Snapcast server hostname.", nargs="?")
-    parser.add_argument("client", help="Snapcast client name.", nargs="?")
+        "hostname", help="Snapcast server hostname.")
+    parser.add_argument("client", help="Snapcast client name.")
 
     args = parser.parse_args()
 
     if args.verbose:
         _LOGGER.setLevel(logging.DEBUG)
 
-    func = discover if args.discover else run
     try:
-        asyncio.run(func(args))
+        asyncio.run(run(args))
     except KeyboardInterrupt:
         pass
 
