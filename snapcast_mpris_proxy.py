@@ -161,10 +161,10 @@ async def run(args) -> NoReturn:
 
     while True:
         # Get latest data
-        status = await server.status()
+        status, error = await server.status()
 
         if not isinstance(status, dict):
-            _LOGGER.warning("Error fetching status from server.")
+            _LOGGER.warning("Error fetching status from server. Error: %s", error)
             await _reconnect(server)
             continue
 
