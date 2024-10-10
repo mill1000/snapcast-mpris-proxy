@@ -14,6 +14,7 @@ default:
 
 install-systemd: $(SYSTEMD_SERVICE_NAME)
 	$(info Installing systemd service.)
+	@$(MKDIR_P) $(SYSTEMD_SERVICE_PATH)
 	cp -u $< $(SYSTEMD_SERVICE_PATH)
 	systemctl daemon-reload
 	systemctl enable $(SYSTEMD_SERVICE_NAME)
@@ -25,6 +26,7 @@ install-bin:
 
 install-policy: $(SYSTEMD_POLICY_NAME)
 	$(info Installing D-Bus policy.)
+	@$(MKDIR_P) $(SYSTEMD_POLICY_PATH)
 	cp $< $(SYSTEMD_POLICY_PATH)/
 	systemctl reload dbus
 
