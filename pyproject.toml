@@ -24,7 +24,7 @@ classifiers = [
 ]
 dependencies = [
   "dbus-fast",
-  "snapcast"
+  "snapcast @ git+https://github.com/mill1000/python-snapcast.git@issue/key_error_metastream"
 ]
 
 [project.urls]
