@@ -67,7 +67,7 @@ class MediaPlayer2PlayerInterface(ServiceInterface):
         if self._playback_status == status:
             return
 
-        _LOGGER.debug("Set PlaybackStatus to %s.", status)
+        _LOGGER.info("Set PlaybackStatus to %s.", status)
         self._playback_status = status
         self.emit_properties_changed(
             {"PlaybackStatus": self._playback_status})
