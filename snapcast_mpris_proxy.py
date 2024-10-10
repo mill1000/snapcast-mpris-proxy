@@ -17,7 +17,7 @@ _LOGGER = logging.getLogger("snapcast-mpris-proxy")
 class PlaybackStatus(StrEnum):
     PLAYING = "Playing"
     PAUSED = "Paused"
-    STOPPED = "STOPPED"
+    STOPPED = "Stopped"
 
 
 class MediaPlayer2Interface(ServiceInterface):
