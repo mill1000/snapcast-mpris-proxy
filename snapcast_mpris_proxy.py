@@ -164,7 +164,8 @@ async def run(args) -> NoReturn:
         status, error = await server.status()
 
         if not isinstance(status, dict):
-            _LOGGER.warning("Error fetching status from server. Error: %s", error)
+            _LOGGER.warning(
+                "Error fetching status from server. Error: %s", error)
             await _reconnect(server)
             continue
 
