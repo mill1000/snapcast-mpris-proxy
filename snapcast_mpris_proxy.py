@@ -101,7 +101,7 @@ class MediaPlayer2PlayerInterface(ServiceInterface):
 
 async def _reconnect(server) -> None:
     """Attempt to reconnect to the Snapcast server."""
-    await server.stop()
+    server.stop()
 
     while True:
         try:
