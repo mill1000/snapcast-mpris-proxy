@@ -4,7 +4,9 @@ After=dbus.service network-online.target
 Wants=dbus.service network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/snapcast-mpris-proxy
+Environment="SNAPCAST_SERVER=localhost"
+Environment="SNAPCAST_CLIENT=%H"
+ExecStart=/home/pi/.local/bin/snapcast-mpris-proxy ${SNAPCAST_SERVER} ${SNAPCAST_CLIENT}
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=snapcast-mpris-proxy
