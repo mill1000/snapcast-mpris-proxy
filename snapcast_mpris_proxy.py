@@ -173,7 +173,7 @@ async def run(args) -> NoReturn:
         server.synchronize(status)
 
         # Check client and stream state
-        stream_idle = client.group.stream_status == "idle"
+        stream_idle = client.group.stream_status == "idle" if client.group is not None else True
         client_idle = client.muted or stream_idle
 
         _LOGGER.debug("Client idle: %s. Client mute: %s. Stream idle: %s.",
