@@ -11,7 +11,7 @@ from dbus_fast import BusType, PropertyAccess
 from dbus_fast.aio import MessageBus
 from dbus_fast.service import ServiceInterface, dbus_property
 
-_LOGGER = logging.getLogger("snapcast-mpris-proxy")
+LOGGER = logging.getLogger("snapcast-mpris-proxy")
 
 
 class PlaybackStatus(StrEnum):
@@ -49,7 +49,6 @@ class MediaPlayer2Interface(ServiceInterface):
 
 
 class MediaPlayer2PlayerInterface(ServiceInterface):
-
     """MPRIS MediaPlayer2 Player Interface"""
 
     def __init__(self) -> None:
@@ -67,7 +66,7 @@ class MediaPlayer2PlayerInterface(ServiceInterface):
         if self._playback_status == status:
             return
 
-        _LOGGER.info("Set PlaybackStatus to %s.", status)
+        LOGGER.info("Set PlaybackStatus to %s.", status)
         self._playback_status = status
         self.emit_properties_changed(
             {"PlaybackStatus": self._playback_status})
@@ -100,47 +99,47 @@ class MediaPlayer2PlayerInterface(ServiceInterface):
 
 
 async def run(args) -> NoReturn:
-    """Main proxy function/."""
+    """Main proxy function"""
 
     # Connect to the Snapcast server
     loop = asyncio.get_running_loop()
     try:
         server = await snapcast.control.create_server(loop, args.hostname, reconnect=True)
     except OSError as e:
-        _LOGGER.error(
+        LOGGER.error(
             "Failed to connect to Snapcast server '%s'.", args.hostname)
         exit(1)
 
-    _LOGGER.info("Connected to Snapcast server '%s'.", server)
+    LOGGER.info("Connected to Snapcast server '%s'.", server)
 
     # Try to find the Snapcast client
     client = next(
         (c for c in server.clients if c.friendly_name == args.client), None)
 
     if client is None:
-        _LOGGER.error(
+        LOGGER.error(
             "Failed to find Snapcast client '%s' on the server.", args.client)
         exit(1)
 
     if client.connected == False:
-        _LOGGER.warning("Client is not connected to server.")
+        LOGGER.warning("Client is not connected to server.")
 
     # Connect to the system bus
-    _LOGGER.info("Connecting to system bus.")
+    LOGGER.info("Connecting to system bus.")
     bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
 
     # Construct and export MPRIS interfaces
-    _LOGGER.info("Exporting MediaPlayer2 interface.")
+    LOGGER.info("Exporting MediaPlayer2 interface.")
     mediaplayer2 = MediaPlayer2Interface()
     bus.export("/org/mpris/MediaPlayer2", mediaplayer2)
 
-    _LOGGER.info("Exporting MediaPlayer2.Player interface.")
+    LOGGER.info("Exporting MediaPlayer2.Player interface.")
     player = MediaPlayer2PlayerInterface()
     bus.export("/org/mpris/MediaPlayer2", player)
 
     # Acquire our friendly name
     name = f"org.mpris.MediaPlayer2.snapcast_mpris_proxy.client_{args.client}"
-    _LOGGER.info(f"Requesting friendly name '{name}' on bus.")
+    LOGGER.info(f"Requesting friendly name '{name}' on bus.")
     await bus.request_name(name)
 
     def _client_callback(client) -> None:
@@ -150,8 +149,8 @@ async def run(args) -> NoReturn:
         stream_idle = client.group.stream_status == "idle" if client.group is not None else True
         client_idle = client.muted or stream_idle
 
-        _LOGGER.debug("Client idle: %s. Client mute: %s. Stream idle: %s.",
-                      client_idle, client.muted, stream_idle)
+        LOGGER.debug("Client idle: %s. Client mute: %s. Stream idle: %s.",
+                     client_idle, client.muted, stream_idle)
 
         # Set playback status
         if not client_idle:
@@ -188,7 +187,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.verbose:
-        _LOGGER.setLevel(logging.DEBUG)
+        LOGGER.setLevel(logging.DEBUG)
 
     try:
         asyncio.run(run(args))
