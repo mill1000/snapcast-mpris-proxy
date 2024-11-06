@@ -99,29 +99,13 @@ class MediaPlayer2PlayerInterface(ServiceInterface):
         return False
 
 
-async def _reconnect(server) -> None:
-    """Attempt to reconnect to the Snapcast server."""
-    server.stop()
-
-    while True:
-        try:
-            await server.start()
-            break
-        except OSError as e:
-            _LOGGER.error(
-                "Failed to connect to Snapcast server '%s'.", server)
-            await asyncio.sleep(2)
-
-    _LOGGER.info("Reconnected to Snapcast server '%s'.", server)
-
-
 async def run(args) -> NoReturn:
     """Main proxy function/."""
 
     # Connect to the Snapcast server
     loop = asyncio.get_running_loop()
     try:
-        server = await snapcast.control.create_server(loop, args.hostname)
+        server = await snapcast.control.create_server(loop, args.hostname, reconnect=True)
     except OSError as e:
         _LOGGER.error(
             "Failed to connect to Snapcast server '%s'.", args.hostname)
@@ -159,18 +143,8 @@ async def run(args) -> NoReturn:
     _LOGGER.info(f"Requesting friendly name '{name}' on bus.")
     await bus.request_name(name)
 
-    while True:
-        # Get latest data
-        status, error = await server.status()
-
-        if not isinstance(status, dict):
-            _LOGGER.warning(
-                "Error fetching status from server. Error: %s", error)
-            await _reconnect(server)
-            continue
-
-        # Update server object
-        server.synchronize(status)
+    def _client_callback(client) -> None:
+        nonlocal player
 
         # Check client and stream state
         stream_idle = client.group.stream_status == "idle" if client.group is not None else True
@@ -190,7 +164,11 @@ async def run(args) -> NoReturn:
             # Treat muted client as paused
             player.playback_status = PlaybackStatus.PAUSED
 
-        await asyncio.sleep(.5)
+    # Set callback on client updates
+    client.set_callback(_client_callback)
+
+    while True:
+        await asyncio.sleep(1)
 
 
 def main() -> None:
