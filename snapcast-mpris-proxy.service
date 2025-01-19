@@ -10,6 +10,8 @@ ExecStart=/home/pi/.local/bin/snapcast-mpris-proxy ${SNAPCAST_SERVER} ${SNAPCAST
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=snapcast-mpris-proxy
+Restart=on-failure
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
